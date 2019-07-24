@@ -1,10 +1,14 @@
 # ----------------
+import glob
 import inspect
+import platform
+import sys
+import traceback
+
 import importlib
 import os
-import sys
-import platform
-import glob
+
+
 # ----------------
 
 def rm_docstring_from_source(source):
@@ -49,8 +53,8 @@ def create_fun(name: str, obj, ignore_prefix_function: str):
     """
 
     if (
-        ignore_prefix_function is not None
-        and name[: len(ignore_prefix_function)] == ignore_prefix_function
+                    ignore_prefix_function is not None
+            and name[: len(ignore_prefix_function)] == ignore_prefix_function
     ):
         return None
 
@@ -187,10 +191,10 @@ def write_class(md_file, clas):
 
 
 def write_module(
-    path_to_home: str,
-    module_import: str,
-    path_to_md: str,
-    ignore_prefix_function: str = None,
+        path_to_home: str,
+        module_import: str,
+        path_to_md: str,
+        ignore_prefix_function: str = None,
 ):
     """
     Generate a Markdown file based on the content of a Python module
@@ -202,12 +206,20 @@ def write_module(
     > **ignore_prefix_function:** `str` -- *None* -- precise the prefix of function or method names to ignore
 
     """
+    # python_paths = os.environ['PYTHONPATH'].split(os.pathsep)
+    # print(python_paths)
     package_path = os.path.abspath(path_to_home)
     sys.path.insert(0, package_path)
 
     try:
         module = importlib.import_module(module_import, package=module_import.split(".")[0])
+    except ImportError as import_error:
+        # exc = traceback.format_exc()
+        # print(exc)
+        raise ImportError(str(import_error) + " in " + module_import)
     except ModuleNotFoundError as error:
+        # exc = traceback.format_exc()
+        # print(exc)
         raise ModuleNotFoundError(str(error) + " in " + module_import)
 
     clas = [
@@ -254,7 +266,7 @@ def write_mkdocs_yaml(path_to_yaml: str, project_name: str, toc: str):
     > **toc:** `str` -- the toc and the all hierarchy of the website
     """
     yaml_file = open(path_to_yaml, "w")
-    content ="""site_name: {}
+    content = """site_name: {}
 theme:
   name: 'material'
 nav:
@@ -281,7 +293,6 @@ markdown_extensions:
     yaml_file.close()
 
 
-
 def write_indexmd(path_to_indexmd: str, project_name: str):
     """
     Generate the YAML file that contains the website configs
@@ -291,14 +302,14 @@ def write_indexmd(path_to_indexmd: str, project_name: str):
     > **project_name:** `str` -- name of the project
     """
     indexmd_file = open(path_to_indexmd, "w")
-    content ="""# Welcome to {0}
+    content = """# Welcome to {0}
 This website contains the documentation for the wonderful project {0}
 """.format(project_name)
     indexmd_file.writelines(content)
     indexmd_file.close()
 
 
-def write_doc(src:str, mainfolder:str):
+def write_doc(src: str, mainfolder: str):
     # variables
     project_icon = "code"  # https://material.io/tools/icons/?style=baseline
 
@@ -308,11 +319,12 @@ def write_doc(src:str, mainfolder:str):
     doc_path = os.path.join(os.path.abspath(mainfolder), "docs")
     package_name = code_path.split("/")[-1]
     root_path = os.path.dirname(code_path)
-    
-    #Since windows and Linux platforms utilizes different slash in their file structure
+
+    # Since windows and Linux platforms utilizes different slash in their file structure
     system_slash_style = {
-        "Windows" : "\\",
-        "Linux": "/"
+        "Windows": "\\",
+        "Linux": "/",
+        "Darwin": "/"
     }
 
     # load the architecture of the module
@@ -322,34 +334,33 @@ def write_doc(src:str, mainfolder:str):
         p
         for p in full_list_glob
         if "/" + ign_pref_file not in p and os.path.isfile(p) and p[-3:] == ".py" \
-            and "__init__" not in p
+           and "__init__" not in p
     ]
 
     # write every markdown files based on the architecture
     toc = ""
     for mod in list_glob:
-        module_name = mod[len(root_path) + 1 : -3]\
+        module_name = mod[len(root_path) + 1: -3] \
             .replace(system_slash_style[platform.system()], ".")
-        mdfile_path = os.path.join(doc_path, mod[len(code_path) + 1 : -3] + ".md")
-        mdfile_name = mdfile_path[len(doc_path) + 1 :]
+        md_file_path = os.path.join(doc_path, mod[len(code_path) + 1: -3] + ".md")
+        md_file_name = md_file_path[len(doc_path) + 1:]
         try:
-            write_module(root_path, module_name, mdfile_path)
-            toc += get_toc_lines_from_file_path(mdfile_name)
+            write_module(root_path, module_name, md_file_path)
+            toc += get_toc_lines_from_file_path(md_file_name)
         except Exception as error:
-            print("[-]Warning ",error)
-            
+            print("[-]Warning ", error)
+
     if len(toc) == 0:
         raise ValueError("All the files seems invalid")
 
-    
-    #removed the condition because it would'nt update the yml file in case
-    #of any update in the source code
+    # removed the condition because it would'nt update the yml file in case
+    # of any update in the source code
     yml_path = os.path.join(mainfolder, 'mkdocs.yml')
     write_mkdocs_yaml(yml_path, project_name, toc)
 
     index_path = os.path.join(doc_path, 'index.md')
     write_indexmd(index_path, project_name)
-    
+
     """
     if not os.path.isfile(yml_path):
         write_mkdocs_yaml(yml_path, project_name, toc)
